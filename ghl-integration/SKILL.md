@@ -1,7 +1,7 @@
 ---
 name: ghl-integration
-description: "Call the GoHighLevel (LeadConnector) v2 API for The Relax Estate. Use for: contacts CRUD, opportunities, pipelines, calendars, users, forms, submissions, and any GHL operation Hermes needs to perform directly."
-version: 1.1.0
+description: "Call the GoHighLevel (LeadConnector) v2 API for The Relax Estate. Use for: contacts CRUD, opportunities, pipelines, calendars, users, forms, submissions, conversations, email sending, and any GHL operation Hermes needs to perform directly."
+version: 1.2.0
 tags: [ghl, gohighlevel, leadconnector, crm, api]
 ---
 
@@ -158,10 +158,75 @@ curl -s "https://services.leadconnectorhq.com/forms/submissions?locationId=ttFct
 **Key form IDs (The Relax Estate):**
 
 - Form ID | Name
+- `r5GSJOGT7l0c1tsRomOE` | [ TEST USE ONLY ] Onboarding Form Pro Subscription @97 - Updated for Automation
 - `eW94IwtuwLDBo1ijaVpz` | Onboarding Form Pro Subscription @97 - Updated for Automation
 - `3II98q4ez1sNn1DJpLWu` | Onboarding Form Starter Subscription @47 - Updated for Automation
 - `9GbqYqfvsjlQ5JUEM2JD` | Relax Estate Onboarding Sign In Sheet
 - `OD5ZDdaSCsSavE1LeKzL` | Relax Estate Webinar In Sheet
+
+### Sending Email via Conversations
+
+GHL sends emails through the conversations API — preferred over external SMTP because emails auto-log in the contact's GHL timeline.
+
+```bash
+# Send an email to a contact
+curl -s -X POST "https://services.leadconnectorhq.com/conversations/messages" \
+  $AUTH_HEADERS \
+  -d '{
+    "locationId": "ttFcthXlmNejS8lHdriw",
+    "type": "Email",
+    "contactId": "{contactId}",
+    "subject": "Subject line",
+    "html": "<p>HTML body</p>",
+    "text": "Plain text fallback",
+    "from": "support@mp.therelaxestatepros.com"
+  }'
+```
+
+**Critical field names:** Use `html` and `text` — NOT `body` or `message`. Those will silently drop the content and return "no message or attachments" error.
+
+**Response:**
+```json
+{
+  "threadId": "dmlTih7...",
+  "messageId": "JDfNls...",
+  "emailMessageId": "JDfNls...",
+  "msg": "Email queued successfully.",
+  "conversationId": "Pcw8ck..."
+}
+```
+
+⚠️ **NEVER send emails without explicit user permission.** Not even test emails.
+
+### Curator Email Template
+
+See `templates/curator-email.md` — the branded HTML template for the 4-month client curator emails. Uses `{{first_name}}`, `{{favorite_artist}}`, `{{favorite_cuisine}}`, and `{{go-to_meal}}` placeholders. Tone: friendly casual gift. Includes a CTA for recipe video submissions.
+
+### Form Field UUID Reference
+
+Custom fields in form submissions use opaque UUID keys. Here's the decoded mapping for the Pro @97 and Starter @47 onboarding forms:
+
+| UUID | Field Label |
+|------|-------------|
+| `wvPKOeVyaZFkF5lIAZts` | Favorite Artist |
+| `FfwDUc8rrtbCAZZccfOr` | Favorite Cuisine |
+| `SI8SYiBMjFcP06V8iO9a` | Go-to Meal |
+| `wSI3HshTZ2VmCmaWrKcE` | Company / Business Name |
+| `U0uQ1jNlI8OVqPbsLqng` | Budget |
+| `b1f0aJ40JDiA70vNQ2Xm` | Deed Add-on (Yes/No) |
+| `oZUXzPZGu5OdtOAQZUex` | Deed Add-on Type |
+| `yManFDypMzva6QVBTPrb` | Referral Email |
+
+### Contact Notes
+
+```bash
+# Add a note to a contact
+curl -s -X POST "https://services.leadconnectorhq.com/contacts/{contactId}/notes?locationId=ttFcthXlmNejS8lHdriw" \
+  $AUTH_HEADERS \
+  -d '{"body": "Note text here"}'
+
+# Notes: locationId is a QUERY PARAM (not body). Body goes in {"body": "..."}.
+```
 
 ## Existing Pipelines
 
@@ -195,4 +260,5 @@ curl -s "https://services.leadconnectorhq.com/forms/submissions?locationId=ttFct
 4. **API key is location-scoped.** This pit- key only works for location `ttFcthXlmNejS8lHdriw`. For other locations, a different key is needed.
 5. **Never hardcode contact/opportunity IDs.** Always fetch fresh lists — IDs may change or be deleted.
 6. **Forms submissions paginate.** `GET /forms/submissions` returns 20 per page. Check `meta.nextPage` to know if there are more. Phone numbers are partially redacted (e.g., `+178****8200`).
-7. **Form custom field IDs are opaque UUIDs.** Custom fields in the `others` object use UUID keys like `wSI3HshTZ2VmCmaWrKcE`. These map to specific form fields — the field label is not returned by the API, so you'll need to cross-reference with the form builder UI to map UUIDs to field names.
+7. **Form custom field IDs are opaque UUIDs.** Custom fields in the `others` object use UUID keys like `wSI3HshTZ2VmCmaWrKcE`. These map to specific form fields — the field label is not returned by the API, so you'll need to cross-reference with the form builder UI to map UUIDs to field names. See `references/onboarding-form-fields.md` for the decoded Pro/Starter form mappings.
+8. **Email sends use `html`/`text`, NOT `body`/`message`.** `POST /conversations/messages` with `type: "Email"` requires `html` for the HTML body and `text` for the plain-text fallback. Using `body` or `message` returns 422 "There is no message or attachments for this message. Skip sending." The endpoint queues the email — it returns immediately with a `threadId` + `messageId`. Check the contact's GHL timeline to confirm delivery.
